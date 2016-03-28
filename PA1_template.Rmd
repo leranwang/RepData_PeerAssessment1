@@ -8,18 +8,180 @@ output:
 
 ## Loading and preprocessing the data
 
+```{r, echo=TRUE}
+library(ggplot2)
+activity <- read.csv(file = "activity.csv", head = TRUE, sep = ",", stringsAsFactors = FALSE)
 
+```
 
 ## What is mean total number of steps taken per day?
 
+1. Make a histogram of the total number of steps taken each day
 
+```{r, echo=TRUE}
+aggdata <- aggregate(x = activity$steps, by = list(date = activity$date), FUN = "sum")
+ggplot(data = aggdata, aes(x = aggdata$x)) + geom_histogram()
+```
+
+2. Calculate and report the mean and median total number of steps taken per day
+
+Mean: 10766.19, Median: 10765
+```{r, echo=TRUE}
+mean(aggdata$x, na.rm = TRUE)
+
+median(aggdata$x, na.rm = TRUE)
+```
 
 ## What is the average daily activity pattern?
 
+1. Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+
+```{r, echo=TRUE}
+complete <- activity[complete.cases(activity$steps), ]
+aggdata2 <- aggregate(x = complete$steps, by = list(interval = complete$interval), FUN = "mean")
+ggplot(data = aggdata2, aes(interval, x)) + geom_line() + xlab("5-minute interval") + ylab("Average steps across all days") + scale_x_continuous(breaks = round(seq(min(aggdata2$interval), max(aggdata2$interval), by = 250), 1))
+```
+
+2. Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+
+Interval '835' has the maximum number of steps:
+
+```{r, echo=TRUE}
+aggdata2[which.max(aggdata2$x), ]
+```
 
 
 ## Imputing missing values
 
+1. Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+
+2304 rows with NAs
+
+```{r, echo=TRUE}
+
+sum(!complete.cases(activity))
+
+```
+
+
+2. Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.
+
+Strategy to use: Set NAs values with the mean of the 5-minute interval.
+
+
+3. Create a new dataset that is equal to the original dataset but with the missing data filled in.
+
+```{r, echo=TRUE}
+
+activity2 <- activity
+
+complete <- activity[complete.cases(activity$steps), ]
+# Calculate the mean for each interval across all days
+aggdata2 <- aggregate(x = complete$steps, by = list(interval = complete$interval), FUN = "mean")
+
+# replace NA values
+for(i in 1:nrow(activity2)){
+  if(is.na(activity2[i, "steps"])) {
+    activity2[i, "steps"] <- aggdata2[which(aggdata2$interval == activity2[i, "interval"]), "x"]
+  }
+}
+
+head(activity2)
+```
+
+
+4. Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+Histogram of steps taken each day
+```{r, echo=TRUE}
+aggdata3 <- aggregate(x = activity2$steps, by = list(date = activity2$date), FUN = "sum")
+ggplot(data = aggdata3, aes(x = aggdata3$x)) + geom_histogram()
+```
+
+Mean: 10766.19, Median: 10766.19
+```{r, echo=TRUE}
+mean(aggdata3$x)
+
+median(aggdata3$x)
+```
+
+As we can see, the Median value increases when imputing NA values, while the Mean value stays the same. 
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+1. Create a new factor variable in the dataset with two levels -- "weekday" and "weekend" indicating whether a given date is a weekday or weekend day.
+
+```{r, echo=TRUE}
+activity2$date <- as.Date(activity2$date)
+#create a vector of weekdays
+weekdays <- c('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday')
+#adding a column for indicating if the date is a weekday or weekend
+activity2$dayOfWeek <- factor((weekdays(activity2$date) %in% weekdays), levels=c(FALSE, TRUE), labels=c('weekend', 'weekday'))
+
+head(activity2)
+```
+
+
+2. Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis). The plot should look something like the following, which was created using simulated data:
+
+```{r, echo=FALSE}
+# Multiple plot function
+#
+# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
+# - cols:   Number of columns in layout
+# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
+#
+# If the layout is something like matrix(c(1,2,3,3), nrow=2, byrow=TRUE),
+# then plot 1 will go in the upper left, 2 will go in the upper right, and
+# 3 will go all the way across the bottom.
+#
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+```
+
+```{r, echo=TRUE}
+dataWeekdays <- activity2[which(activity2$dayOfWeek == "weekday"), ]
+dataWeekends <- activity2[which(activity2$dayOfWeek == "weekend"), ]
+aggdataWeekdays <- aggregate(x = dataWeekdays$steps, by = list(interval = dataWeekdays$interval), FUN = "mean")
+aggdataWeekends <- aggregate(x = dataWeekends$steps, by = list(interval = dataWeekends$interval), FUN = "mean")
+
+g1 <- ggplot(data = aggdataWeekends, aes(interval, x)) + geom_line() + xlab("Interval") + ylab("Number of steps") + scale_x_continuous(breaks = round(seq(min(aggdataWeekends$interval), max(aggdataWeekends$interval), by = 250), 1)) + ggtitle("Weekend")
+
+g2 <- ggplot(data = aggdataWeekdays, aes(interval, x)) + geom_line() + xlab("Interval") + ylab("Number of steps") + scale_x_continuous(breaks = round(seq(min(aggdataWeekdays$interval), max(aggdataWeekdays$interval), by = 250), 1)) + ggtitle("Weekday")
+
+multiplot(g1, g2, cols=1)
+```
